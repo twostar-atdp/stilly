@@ -1,101 +1,96 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from 'react';
+import GameBoard from './components/GameBoard';
+import { GameState } from '@/lib/game';
+import { Card, CardContent } from "@/components/ui/card";
+import { Film } from 'lucide-react';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [loading, setLoading] = useState(true);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    fetchGameState();
+  }, []);
+
+
+  const fetchGameState = async () => {
+    try {
+      const response = await fetch('/api/game');
+      const data = await response.json();
+      setGameState(data);
+    } catch (error) {
+      console.error('Error fetching game state:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGuess = async (guess: string) => {
+    try {
+      const response = await fetch('/api/game/guess', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ guess }),
+      });
+      const updatedState = await response.json();
+      setGameState(updatedState);
+    } catch (error) {
+      console.error('Error submitting guess:', error);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-zinc-950 relative overflow-hidden">
+      {/* Animated gradient background */}
+      <div 
+        className="absolute inset-0 opacity-50"
+        style={{
+          background: 'linear-gradient(45deg, rgba(51, 65, 85, 0.1), rgba(100, 116, 139, 0.1))',
+          backgroundSize: '400% 400%',
+          animation: 'gradient 15s ease infinite'
+        }}
+      />
+
+      <main className="relative container mx-auto p-4 pt-12">
+        <div className="text-center mb-12">
+          <h1 className="relative inline-flex flex-col items-center">
+            <div className="flex items-center gap-3 mb-2">
+              <Film className="w-12 h-12 text-indigo-400" />
+              <span className="text-6xl md:text-7xl font-black text-white tracking-tight font-display">
+                Stilly
+              </span>
+            </div>
+            <span className="text-sm md:text-base text-zinc-400 font-medium font-sans">
+              Daily Film Frame Challenge
+            </span>
+          </h1>
         </div>
+
+        {loading ? (
+          <Card className="max-w-2xl mx-auto bg-zinc-900/90 border-zinc-800">
+            <CardContent className="flex justify-center p-6">
+              <div className="text-zinc-400 animate-pulse flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-zinc-500 border-t-transparent rounded-full animate-spin" />
+                Loading...
+              </div>
+            </CardContent>
+          </Card>
+        ) : gameState ? (
+          <GameBoard gameState={gameState} onGuess={handleGuess} />
+        ) : (
+          <Card className="max-w-2xl mx-auto bg-zinc-900/90 border-zinc-800">
+            <CardContent className="flex justify-center p-6">
+              <div className="text-red-400">
+                Error loading game • Please refresh
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }

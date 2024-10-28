@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Game {
+  id         Int      @id @default(autoincrement())
+  date       DateTime @unique
+  attempts   Int      @default(0)
+  isComplete Boolean  @default(false)
+  movie      Movie    @relation(fields: [movieId], references: [id])
+  movieId    Int
+  guesses    Guess[]
+  clues      Clue[]
+}
+
+model Movie {
+  id       Int      @id @default(autoincrement())
+  tmdbId   Int      @unique
+  title    String
+  imageUrl String
+  genres   String   // Store as JSON string
+  games    Game[]
+}
+
+model Guess {
+  id     Int    @id @default(autoincrement())
+  guess  String
+  game   Game   @relation(fields: [gameId], references: [id])
+  gameId Int
+}
+
+model Clue {
+  id      Int    @id @default(autoincrement())
+  content String
+  game    Game   @relation(fields: [gameId], references: [id])
+  gameId  Int
+}
