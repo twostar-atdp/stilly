@@ -1,3 +1,5 @@
+
+// app/api/game/guess/route.ts
 import { NextResponse } from 'next/server';
 import { getTodayGame, makeGuess } from '@/lib/game';
 

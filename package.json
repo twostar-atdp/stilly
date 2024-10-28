@@ -2,7 +2,8 @@
   "scripts": {
     "postinstall": "prisma generate",
     "build": "next build",
-    "vercel-build": "node scripts/deploy.js && next build"
+    "vercel-build": "node scripts/deploy.js && next build",
+    "dev": "next dev"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"

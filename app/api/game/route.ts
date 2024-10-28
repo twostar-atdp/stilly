@@ -1,25 +1,28 @@
+// app/api/game/route.ts
 import { NextResponse } from 'next/server';
-import { getTodayGame, makeGuess } from '@/lib/game';
+import { getTodayGame, initializeTodayGame } from '@/lib/game';
+import { headers } from 'next/headers';
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
+  const headersList = headers();
+  console.log('GET /api/game called');
+  
   try {
-    const { guess } = await request.json();
-    const currentGame = await getTodayGame();
+    console.log('Attempting to get today\'s game...');
+    let game = await getTodayGame();
     
-    if (!currentGame || currentGame.isComplete || currentGame.attempts >= 6) {
-      return NextResponse.json(
-        { error: 'Game is not available or already complete' },
-        { status: 400 }
-      );
+    if (!game) {
+      console.log('No game found, initializing new game...');
+      game = await initializeTodayGame();
     }
-
-    const updatedGame = await makeGuess(currentGame.id, guess);
-    return NextResponse.json(updatedGame);
+    
+    return NextResponse.json(game);
   } catch (error) {
-    console.error('Error processing guess:', error);
+    console.error('Error in /api/game:', error);
     return NextResponse.json(
-      { error: 'Failed to process guess' },
+      { error: 'Failed to fetch game state' },
       { status: 500 }
     );
   }
 }
+
