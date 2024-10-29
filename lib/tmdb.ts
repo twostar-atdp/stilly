@@ -121,3 +121,36 @@ export function generateClue(movie: TMDBMovie, attemptNumber: number): string {
   
   return clues[attemptNumber - 1] || "No more clues available!";
 }
+
+export interface MovieSearchResult {
+  id: number;
+  title: string;
+  release_date: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+}
+
+export async function fetchMovieSearch(query: string): Promise<MovieSearchResult[]> {
+  try {
+    const response = await axios.get(`${TMDB_BASE_URL}/search/movie`, {
+      params: {
+        api_key: TMDB_API_KEY,
+        language: 'en-US',
+        query: query,
+        include_adult: false,
+        page: 1
+      },
+    });
+
+    return response.data.results.map((movie: any) => ({
+      id: movie.id,
+      title: movie.title,
+      release_date: movie.release_date,
+      poster_path: movie.poster_path,
+      backdrop_path: movie.backdrop_path
+    }));
+  } catch (error) {
+    console.error('Error searching movies:', error);
+    return [];
+  }
+}

@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getTodayGame } from '@/lib/game';
-import { cookies } from 'next/headers';
-import { createClient } from '@/utils/supabase/server';
+import { supabase } from '@/lib/supabase';
 
 export async function GET(request: Request) {
   try {
@@ -15,21 +13,22 @@ export async function GET(request: Request) {
       );
     }
 
-    const game = await getTodayGame(sessionId);
-    
-    if (!game) {
-      return NextResponse.json(
-        { error: 'No game available' },
-        { status: 404 }
-      );
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('stats')
+      .eq('session_id', sessionId)
+      .single();
+
+    if (error) {
+      throw error;
     }
-    
-    return NextResponse.json(game);
+
+    return NextResponse.json(user.stats);
   } catch (error) {
-    console.error('Error in /api/game:', error);
+    console.error('Error fetching stats:', error);
     return NextResponse.json(
       { 
-        error: error instanceof Error ? error.message : 'Failed to fetch game state',
+        error: error instanceof Error ? error.message : 'Failed to fetch stats',
         details: process.env.NODE_ENV === 'development' ? error : undefined
       },
       { status: 500 }

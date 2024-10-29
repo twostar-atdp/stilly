@@ -6,22 +6,46 @@ import GameBoard from './components/GameBoard';
 import { GameState } from '@/lib/game';
 import { Card, CardContent } from "@/components/ui/card";
 import { Film } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
+
+function useSessionId() {
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const key = 'stilly_session_id';
+    let id = window.localStorage.getItem(key);
+    
+    if (!id) {
+      id = uuidv4();
+      window.localStorage.setItem(key, id);
+    }
+    
+    setSessionId(id);
+    setIsLoading(false);
+  }, []);
+
+  return { sessionId, isLoading };
+}
 
 export default function Home() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { sessionId, isLoading: sessionLoading } = useSessionId();
 
   useEffect(() => {
-    fetchGameState();
-  }, []);
+    if (sessionId) {
+      fetchGameState(sessionId);
+    }
+  }, [sessionId]);
 
-  const fetchGameState = async () => {
+  const fetchGameState = async (sid: string) => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/game', {
+      const response = await fetch(`/api/game?sessionId=${sid}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -46,13 +70,18 @@ export default function Home() {
   };
 
   const handleGuess = async (guess: string) => {
+    if (!sessionId) return;
+
     try {
       const response = await fetch('/api/game/guess', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ guess }),
+        body: JSON.stringify({ 
+          guess,
+          sessionId 
+        }),
       });
 
       if (!response.ok) {
@@ -69,6 +98,41 @@ export default function Home() {
       setError(error instanceof Error ? error.message : 'Failed to submit guess');
     }
   };
+
+  if (sessionLoading || loading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <Card className="max-w-md w-full bg-zinc-900/90 border-zinc-800">
+          <CardContent className="flex justify-center p-6">
+            <div className="text-zinc-400 animate-pulse flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-zinc-500 border-t-transparent rounded-full animate-spin" />
+              Loading...
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full bg-zinc-900/90 border-zinc-800">
+          <CardContent className="flex flex-col items-center p-6 space-y-4">
+            <div className="text-red-400 text-center">
+              {error}
+            </div>
+            <button 
+              onClick={() => sessionId && fetchGameState(sessionId)}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+            >
+              Try Again
+            </button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 relative overflow-hidden">
@@ -96,39 +160,8 @@ export default function Home() {
           </h1>
         </div>
 
-        {loading ? (
-          <Card className="max-w-2xl mx-auto bg-zinc-900/90 border-zinc-800">
-            <CardContent className="flex justify-center p-6">
-              <div className="text-zinc-400 animate-pulse flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-zinc-500 border-t-transparent rounded-full animate-spin" />
-                Loading...
-              </div>
-            </CardContent>
-          </Card>
-        ) : error ? (
-          <Card className="max-w-2xl mx-auto bg-zinc-900/90 border-zinc-800">
-            <CardContent className="flex flex-col items-center p-6 space-y-4">
-              <div className="text-red-400">
-                {error}
-              </div>
-              <button 
-                onClick={fetchGameState}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-              >
-                Try Again
-              </button>
-            </CardContent>
-          </Card>
-        ) : gameState ? (
+        {gameState && (
           <GameBoard gameState={gameState} onGuess={handleGuess} />
-        ) : (
-          <Card className="max-w-2xl mx-auto bg-zinc-900/90 border-zinc-800">
-            <CardContent className="flex justify-center p-6">
-              <div className="text-red-400">
-                No game state available • Please refresh
-              </div>
-            </CardContent>
-          </Card>
         )}
       </main>
     </div>
