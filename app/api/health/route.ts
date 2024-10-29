@@ -1,16 +1,17 @@
-
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    await prisma.$queryRaw`SELECT 1`;
-    const movieCount = await prisma.movie.count();
+    const cookieStore = cookies();
+    const supabase = createClient(cookieStore);
+    const { data, error } = await supabase.from('games').select('count');
     
     return NextResponse.json({ 
       status: 'ok',
-      database: 'connected',
-      movieCount,
+      database: error ? 'disconnected' : 'connected',
+      gamesCount: data?.[0]?.count ?? 0,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
