@@ -374,106 +374,128 @@ async function getOrCreateUserSession(userId: number, gameId: number): Promise<G
 }
 
 export async function makeGuess(sessionId: string, guess: string): Promise<GameState> {
-  const userId = await getUserId(sessionId);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  try {
+    const userId = await getUserId(sessionId);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-  // Get current game and session
-  const { data: session, error: sessionError } = await supabase
-    .from('user_game_sessions')
-    .select(`
-      *,
-      game:games(
+    // First get today's game
+    const { data: todayGame, error: gameError } = await supabase
+      .from('games')
+      .select('id')
+      .eq('date', today.toISOString().split('T')[0])
+      .single();
+
+    if (gameError) {
+      throw new Error('No active game found for today');
+    }
+
+    // Then get the user's session for today's game
+    const { data: session, error: sessionError } = await supabase
+      .from('user_game_sessions')
+      .select(`
         *,
-        movie:movies(*)
-      ),
-      guesses:user_game_guesses(guess, created_at),
-      clues:user_game_clues(content, created_at)
-    `)
-    .eq('user_id', userId)
-    .eq('game.date', today.toISOString().split('T')[0])
-    .single();
+        game:games!inner(
+          *,
+          movie:movies(*)
+        ),
+        guesses:user_game_guesses(
+          guess,
+          created_at
+        ),
+        clues:user_game_clues(
+          content,
+          created_at
+        )
+      `)
+      .eq('user_id', userId)
+      .eq('game_id', todayGame.id)
+      .single();
 
-  if (sessionError || !session) {
-    throw new Error('Active game session not found');
-  }
+    if (sessionError || !session) {
+      console.error('Session error:', sessionError);
+      throw new Error('Active game session not found');
+    }
 
-  if (session.is_complete || session.attempts >= 6) {
-    throw new Error('Game is already complete');
-  }
+    if (session.is_complete || session.attempts >= 6) {
+      throw new Error('Game is already complete');
+    }
 
-  const normalizedGuess = guess.trim().toLowerCase();
-  const normalizedTitle = session.game.movie.title.toLowerCase();
-  const isCorrect = normalizedGuess === normalizedTitle;
-  const newAttemptNumber = session.attempts + 1;
+    const normalizedGuess = guess.trim().toLowerCase();
+    const normalizedTitle = session.game.movie.title.toLowerCase();
+    const isCorrect = normalizedGuess === normalizedTitle;
+    const newAttemptNumber = session.attempts + 1;
 
-  // Add guess
-  const { error: guessError } = await supabase
-    .from('user_game_guesses')
-    .insert({
-      user_game_session_id: session.id,
-      guess: guess.trim()
-    });
-
-  if (guessError) {
-    throw new Error(`Failed to save guess: ${guessError.message}`);
-  }
-
-  // Generate and add new clue
-  const movies = await fetchCuratedMovies();
-  const movieData = movies.find(m => m.id === session.game.movie.tmdb_id);
-  const newClue = movieData ? generateClue(movieData, newAttemptNumber) : '';
-
-  if (newClue) {
-    const { error: clueError } = await supabase
-      .from('user_game_clues')
+    // Add guess
+    const { error: guessError } = await supabase
+      .from('user_game_guesses')
       .insert({
         user_game_session_id: session.id,
-        content: newClue
+        guess: guess.trim()
       });
 
-    if (clueError) {
-      throw new Error(`Failed to save clue: ${clueError.message}`);
+    if (guessError) {
+      throw new Error(`Failed to save guess: ${guessError.message}`);
     }
-  }
 
-  // Update session state
-  const { data: updatedSession, error: updateError } = await supabase
-    .from('user_game_sessions')
-    .update({
-      attempts: newAttemptNumber,
-      is_complete: isCorrect
-    })
-    .eq('id', session.id)
-    .select(`
-      *,
-      game:games(
+    // Generate and add new clue
+    const movies = await fetchCuratedMovies();
+    const movieData = movies.find(m => m.id === session.game.movie.tmdb_id);
+    const newClue = movieData ? generateClue(movieData, newAttemptNumber) : '';
+
+    if (newClue) {
+      const { error: clueError } = await supabase
+        .from('user_game_clues')
+        .insert({
+          user_game_session_id: session.id,
+          content: newClue
+        });
+
+      if (clueError) {
+        throw new Error(`Failed to save clue: ${clueError.message}`);
+      }
+    }
+
+    // Update session state
+    const { data: updatedSession, error: updateError } = await supabase
+      .from('user_game_sessions')
+      .update({
+        attempts: newAttemptNumber,
+        is_complete: isCorrect
+      })
+      .eq('id', session.id)
+      .select(`
         *,
-        movie:movies(*)
-      ),
-      guesses:user_game_guesses(guess, created_at),
-      clues:user_game_clues(content, created_at)
-    `)
-    .single();
+        game:games(
+          *,
+          movie:movies(*)
+        ),
+        guesses:user_game_guesses(guess, created_at),
+        clues:user_game_clues(content, created_at)
+      `)
+      .single();
 
-  if (updateError || !updatedSession) {
-    throw new Error(`Failed to update session: ${updateError?.message}`);
-  }
+    if (updateError || !updatedSession) {
+      throw new Error(`Failed to update session: ${updateError?.message}`);
+    }
 
-  // Update user stats if game is complete
-  const gameComplete = isCorrect || newAttemptNumber >= 6;
-  if (gameComplete) {
-    const userStats = await updateUserStats(userId, {
-      won: isCorrect,
-      attempts: newAttemptNumber
-    });
+    // Update user stats if game is complete
+    const gameComplete = isCorrect || newAttemptNumber >= 6;
+    if (gameComplete) {
+      const userStats = await updateUserStats(userId, {
+        won: isCorrect,
+        attempts: newAttemptNumber
+      });
+      return mapGameToState(updatedSession.game, updatedSession, userStats);
+    }
+
+    const userStats = await getUserStats(userId);
     return mapGameToState(updatedSession.game, updatedSession, userStats);
+  } catch (error) {
+    console.error('Error in makeGuess:', error);
+    throw error;
   }
-
-  const userStats = await getUserStats(userId);
-  return mapGameToState(updatedSession.game, updatedSession, userStats);
 }
-
 function generateClue(movie: TMDBMovie, attemptNumber: number): string {
   const clues = [
     `Released in ${movie.release_date?.split('-')[0]}`,
